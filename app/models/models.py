@@ -7,14 +7,6 @@ from sqlalchemy.types import DateTime
 from app import db
 from datetime import datetime, timezone
 
-# app/models.py
-
-from typing import Optional, List
-import sqlalchemy as sa
-import sqlalchemy.orm as so
-from sqlalchemy.types import DateTime
-from app import db
-from datetime import datetime, timezone
 
 class User(db.Model):
     __tablename__ = 'users'
@@ -47,7 +39,26 @@ class User(db.Model):
     def __repr__(self):
         return f'<User {self.phone_number}, {self.alias}>'
 
-# should probs add a completed column to check off when session is done.
+    def __eq__(self, other):
+        if not isinstance(other, User):
+            return False
+        return (
+            self.id == other.id and
+            self.email == other.email and
+            self.password_hash == other.password_hash and
+            self.date_of_birth == other.date_of_birth and
+            self.gender == other.gender and
+            self.height == other.height and
+            self.initial_weight == other.initial_weight and
+            self.phone_number == other.phone_number and
+            self.created_at == other.created_at and
+            self.updated_at == other.updated_at and
+            self.name == other.name and
+            self.surname == other.surname and
+            self.alias == other.alias
+        )
+
+
 class TrainingSession(db.Model):
     __tablename__ = 'training_sessions'
 
@@ -68,6 +79,19 @@ class TrainingSession(db.Model):
     training_details: so.Mapped[List['TrainingDetail']] = so.relationship(
         'TrainingDetail', back_populates='session', cascade='all, delete-orphan'
     )
+
+    def __eq__(self, other):
+        if not isinstance(other, TrainingSession):
+            return False
+        return (
+            self.id == other.id and
+            self.user_id == other.user_id and
+            self.date == other.date and
+            self.notes == other.notes and
+            self.created_at == other.created_at and
+            self.updated_at == other.updated_at
+        )
+
 
 class TrainingDetail(db.Model):
     __tablename__ = 'training_details'
@@ -98,3 +122,27 @@ class TrainingDetail(db.Model):
     # Relationships
     session: so.Mapped['TrainingSession'] = so.relationship('TrainingSession', back_populates='training_details')
     atleta: so.Mapped['User'] = so.relationship('User')
+
+    def __eq__(self, other):
+        if not isinstance(other, TrainingDetail):
+            return False
+        return (
+            self.id == other.id and
+            self.session_id == other.session_id and
+            self.timestamp == other.timestamp and
+            self.serie == other.serie and
+            self.rep == other.rep and
+            self.kg == other.kg and
+            self.d == other.d and
+            self.vm == other.vm and
+            self.vmp == other.vmp and
+            self.rm == other.rm and
+            self.p_w == other.p_w and
+            self.perfil == other.perfil and
+            self.ejercicio == other.ejercicio and
+            self.ecuacion == other.ecuacion and
+            self.atleta_id == other.atleta_id and
+            self.hash_id == other.hash_id and
+            self.created_at == other.created_at and
+            self.updated_at == other.updated_at
+        )

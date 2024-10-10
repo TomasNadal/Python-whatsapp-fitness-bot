@@ -17,12 +17,6 @@ class Config:
     VERSION = os.getenv("VERSION")
     PHONE_NUMBER_ID = os.getenv("PHONE_NUMBER_ID")
     VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
-    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
-        f'sqlite:///{basedir / "app.db"}'
-    
-    # Paths and other variables
-    DOWNLOAD_DATA_PATH = os.getenv("DOWNLOAD_DATA_PATH") or 'data'
-    TEMPORARY_DATAFRAME_TRAINING_FILE = os.getenv("TEMPORARY_DATAFRAME_TRAINING") or 'training_data.csv'
 
 
 
@@ -33,3 +27,22 @@ def configure_logging():
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
         stream=sys.stdout,
     )
+
+
+class ProductionConfig(Config):
+
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_URL') or \
+        f'sqlite:///{basedir / "app.db"}'
+    
+    # Paths and other variables
+    DOWNLOAD_DATA_PATH = os.getenv("DOWNLOAD_DATA_PATH") or 'data'
+    TEMPORARY_DATAFRAME_TRAINING_FILE = os.getenv("TEMPORARY_DATAFRAME_TRAINING") or 'training_data.csv'
+
+class TestingConfig(Config):
+
+    SQLALCHEMY_DATABASE_URI = os.environ.get('DATABASE_TESTING_URL') or \
+        f'sqlite:///{basedir / "testing.db"}'
+    
+    # Paths and other variables
+    DOWNLOAD_DATA_PATH = os.getenv("DOWNLOAD_DATA_PATH_TESTING") or 'data'
+    TEMPORARY_DATAFRAME_TRAINING_FILE = os.getenv("TEMPORARY_DATAFRAME_TRAINING_TESTING") or 'training_data.csv'

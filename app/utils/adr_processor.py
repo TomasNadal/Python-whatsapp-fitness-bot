@@ -1,328 +1,410 @@
 import pandas as pd
-from datetime import datetime, timezone,  timedelta
+from datetime import datetime, timezone, timedelta
 import hashlib
 from flask import current_app
 from app import db
 import sqlalchemy as sa
-import sqlalchemy.orm as so 
+import sqlalchemy.orm as so
 from app.models.models import User, TrainingSession, TrainingDetail
 from .path_utils import get_download_data_path
+import logging
+
+# Configure a dedicated logger for this module
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture all levels of logs
+
+# You can add handlers here if needed, for example, to log to a file
+# handler = logging.FileHandler('app.log')
+# handler.setLevel(logging.DEBUG)
+# formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# handler.setFormatter(formatter)
+# logger.addHandler(handler)
 
 def split_series_column(df):
+    logger.debug("Entering split_series_column function.")
     try:
         new_df = df.copy()
+        logger.debug("DataFrame copied successfully.")
+        
+        # Extract REP and SERIE using regex
         new_df["REP"] = new_df["SERIE"].str.extract(r'R(\d+)')
         new_df["SERIE"] = new_df["SERIE"].str.extract(r'S(\d+)')
-
+        logger.info("Successfully split 'SERIE' column into 'SERIE' and 'REP'.")
+        
         return new_df
     except Exception as e:
-        print(f"Exception: {e}") 
-
+        logger.error(f"Exception in split_series_column: {e}", exc_info=True)
+        raise  # Re-raise exception after logging
 
 def create_hash_id(row, columns):
-    """Create a hash ID for a row based on selected columns."""
-    values = [str(row[col]) for col in columns]
-    combined = '_'.join(values)
-    return hashlib.md5(combined.encode()).hexdigest()[:8]
-
+    logger.debug("Creating hash ID for a row.")
+    try:
+        values = [str(row[col]) for col in columns]
+        combined = '_'.join(values)
+        hash_id = hashlib.md5(combined.encode()).hexdigest()[:8]
+        logger.debug(f"Hash ID created: {hash_id} for combined values: {combined}")
+        return hash_id
+    except Exception as e:
+        logger.error(f"Exception in create_hash_id: {e}", exc_info=True)
+        raise
 
 def add_hash_ids(df, columns_to_hash):
-    df["hash_id"] = df.apply(lambda row: create_hash_id(row, columns_to_hash), axis = 1)
-    return df
-
-
+    logger.debug("Adding hash IDs to DataFrame.")
+    try:
+        df["hash_id"] = df.apply(lambda row: create_hash_id(row, columns_to_hash), axis=1)
+        logger.info("Hash IDs added successfully.")
+        return df
+    except Exception as e:
+        logger.error(f"Exception in add_hash_ids: {e}", exc_info=True)
+        raise
 
 def change_columns_type(df, columns, type_list):
-    """
-    Change the data types of specified columns in a DataFrame.
+    logger.debug("Changing column types.")
+    try:
+        if len(columns) != len(type_list):
+            logger.error("The length of 'columns' and 'type_list' must be the same.")
+            raise ValueError("The length of 'columns' and 'type_list' must be the same.")
 
-    Parameters:
-    - df (pd.DataFrame): The input DataFrame.
-    - columns (list of str): List of column names to be converted.
-    - type_list (list): List of target data types corresponding to each column.
+        missing_columns = [col for col in columns if col not in df.columns]
+        if missing_columns:
+            logger.error(f"Missing columns in DataFrame: {missing_columns}")
+            raise KeyError(f"The following columns are not in the DataFrame: {missing_columns}")
 
-    Returns:
-    - pd.DataFrame: DataFrame with updated column data types.
+        df_converted = df.copy()
+        logger.debug("DataFrame copied for type conversion.")
 
-    Raises:
-    - ValueError: If the lengths of columns and type_list do not match.
-    - KeyError: If any of the specified columns do not exist in the DataFrame.
-    - TypeError: If an invalid type is provided in type_list.
-    """
-    # Check if 'columns' and 'type_list' have the same length
-    if len(columns) != len(type_list):
-        raise ValueError("The length of 'columns' and 'type_list' must be the same.")
+        for col, target_type in zip(columns, type_list):
+            try:
+                logger.debug(f"Converting column '{col}' to type '{target_type}'.")
+                if target_type == 'category':
+                    df_converted[col] = df_converted[col].astype('category')
+                elif target_type == 'datetime':
+                    df_converted[col] = pd.to_datetime(df_converted[col], errors='coerce')
+                elif target_type == 'numeric':
+                    df_converted[col] = pd.to_numeric(df_converted[col], errors='coerce')
+                else:
+                    df_converted[col] = df_converted[col].astype(target_type)
+                logger.info(f"Column '{col}' converted to '{target_type}'.")
+            except ValueError as ve:
+                logger.error(f"ValueError: Cannot convert column '{col}' to {target_type}. {ve}", exc_info=True)
+            except TypeError as te:
+                logger.error(f"TypeError: Invalid type specified for column '{col}'. {te}", exc_info=True)
+            except Exception as e:
+                logger.error(f"Unexpected error converting column '{col}': {e}", exc_info=True)
 
-    # Check if all specified columns exist in the DataFrame
-    missing_columns = [col for col in columns if col not in df.columns]
-    if missing_columns:
-        raise KeyError(f"The following columns are not in the DataFrame: {missing_columns}")
-
-    # Create a copy to avoid modifying the original DataFrame
-    df_converted = df.copy()
-
-    # Iterate over columns and their target types
-    for col, target_type in zip(columns, type_list):
-        try:
-            # Handle specific type conversions if necessary
-            if target_type == 'category':
-                df_converted[col] = df_converted[col].astype('category')
-            elif target_type == 'datetime':
-                df_converted[col] = pd.to_datetime(df_converted[col], errors='coerce')
-            elif target_type == 'numeric':
-                df_converted[col] = pd.to_numeric(df_converted[col], errors='coerce')
-            else:
-                # For standard types like 'int', 'float', 'str', etc.
-                df_converted[col] = df_converted[col].astype(target_type)
-        except ValueError as ve:
-            print(f"ValueError: Cannot convert column '{col}' to {target_type}. {ve}")
-        except TypeError as te:
-            print(f"TypeError: Invalid type specified for column '{col}'. {te}")
-        except Exception as e:
-            print(f"An unexpected error occurred while converting column '{col}': {e}")
-
-    return df_converted
-
-
+        return df_converted
+    except Exception as e:
+        logger.error(f"Exception in change_columns_type: {e}", exc_info=True)
+        raise
 
 def add_timestamps(df):
-    """
-    Adds a 'Timestamp' column to the DataFrame with the current datetime in 'dd-mm-YYYY HH:mm' format.
+    logger.debug("Adding timestamps to DataFrame.")
+    try:
+        if not isinstance(df, pd.DataFrame):
+            logger.error("Input is not a pandas DataFrame.")
+            raise TypeError("Input must be a pandas DataFrame.")
 
-    Parameters:
-    - df (pd.DataFrame): The input DataFrame.
+        if df.empty:
+            logger.error("Input DataFrame is empty. Cannot add timestamps.")
+            raise ValueError("Input DataFrame is empty. Cannot add timestamps.")
 
-    Returns:
-    - pd.DataFrame: DataFrame with the new 'Timestamp' column added.
-
-    Raises:
-    - TypeError: If 'df' is not a pandas DataFrame.
-    - ValueError: If the DataFrame is empty.
-    """
-    # Validate input type
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError("Input must be a pandas DataFrame.")
-
-    # Check if DataFrame is empty
-    if df.empty:
-        raise ValueError("Input DataFrame is empty. Cannot add timestamps to an empty DataFrame.")
-
-    # Create a copy to avoid modifying the original DataFrame
-    df_converted = df.copy()
-
-    # Get current datetime formatted as 'dd-mm-YYYY HH:mm'
-    current_datetime = datetime.now().strftime('%d-%m-%Y %H:%M')
-
-    # Add 'Timestamp' column
-    df_converted['Timestamp'] = current_datetime
-
-    return df_converted
-
+        df_converted = df.copy()
+        current_datetime = pd.Timestamp(datetime.now(timezone.utc))
+        df_converted['Timestamp'] = current_datetime
+        logger.info("Timestamp added successfully.")
+        return df_converted
+    except Exception as e:
+        logger.error(f"Exception in add_timestamps: {e}", exc_info=True)
+        raise
 
 def reorder_columns(df):
-    """
-    Reorder columns in the specified sequence.
-    
-    Args:
-        df (pd.DataFrame): Input DataFrame with all required columns
-        
-    Returns:
-        pd.DataFrame: DataFrame with reordered columns
-    """
-    # Define the desired column order
-    column_order = [
-        'Timestamp',
-        'SERIE',
-        'REP',
-        'KG',
-        'D',
-        'VM',
-        'VMP',
-        'RM',
-        'P(W)',
-        'Perfil',
-        'Ejer.',
-        'Atleta',
-        'Ecuacion',
-        'hash_id'
-    ]
-    
-    # Verify all columns exist
-    missing_cols = [col for col in column_order if col not in df.columns]
-    if missing_cols:
-        raise ValueError(f"Missing columns in DataFrame: {missing_cols}")
-    
-    # Reorder columns
-    df_reordered = df[column_order]
-    
-    return df_reordered
+    logger.debug("Reordering DataFrame columns.")
+    try:
+        column_order = [
+            'Timestamp',
+            'SERIE',
+            'REP',
+            'KG',
+            'D',
+            'VM',
+            'VMP',
+            'RM',
+            'P(W)',
+            'Perfil',
+            'Ejer.',
+            'Atleta',
+            'Ecuacion',
+            'hash_id'
+        ]
 
+        missing_cols = [col for col in column_order if col not in df.columns]
+        if missing_cols:
+            logger.error(f"Missing columns in DataFrame: {missing_cols}")
+            raise ValueError(f"Missing columns in DataFrame: {missing_cols}")
 
+        df_reordered = df[column_order]
+        logger.info("Columns reordered successfully.")
+
+        raw_to_db_column_mapping = {
+            'Timestamp': 'timestamp',
+            'SERIE': 'serie',
+            'REP': 'rep',
+            'KG': 'kg',
+            'D': 'd',
+            'VM': 'vm',
+            'VMP': 'vmp',
+            'RM': 'rm',
+            'P(W)': 'p_w',
+            'Perfil': 'perfil',
+            'Ejer.': 'ejercicio',
+            'Ecuacion': 'ecuacion',
+            'hash_id': 'hash_id'
+        }
+
+        renamed_adr_csv = df_reordered.rename(columns=raw_to_db_column_mapping)
+        logger.info("Columns renamed successfully.")
+        return renamed_adr_csv
+    except Exception as e:
+        logger.error(f"Exception in reorder_columns: {e}", exc_info=True)
+        raise
 
 def preprocess_adr_data(new_adr_path):
-    #Data to csv
-    new_data = pd.read_csv(new_adr_path)
+    logger.debug(f"Preprocessing ADR data from path: {new_adr_path}")
+    try:
+        new_data = pd.read_csv(new_adr_path)
+        logger.info("CSV data read successfully.")
 
+        new_data_copy = new_data.copy()
+        new_data_copy = new_data_copy.drop(columns="R")
+        logger.debug("Column 'R' dropped successfully.")
 
-    new_data_copy = new_data.copy()
-    
-    new_data_copy = new_data.drop(columns = "R")
-    new_data_copy = split_series_column(new_data_copy)
-    
-    
-    columns_to_hash = ['SERIE', 'REP', 'KG', 'D', 'VM', 'VMP', 'RM', 'P(W)', 'Perfil', 'Ejer.', 'Atleta', 'Ecuacion']
+        new_data_copy = split_series_column(new_data_copy)
 
-    new_data_copy = add_hash_ids(new_data_copy, columns_to_hash)
+        columns_to_hash = ['SERIE', 'REP', 'KG', 'D', 'VM', 'VMP', 'RM', 'P(W)', 'Perfil', 'Ejer.', 'Atleta', 'Ecuacion']
+        new_data_copy = add_hash_ids(new_data_copy, columns_to_hash)
 
+        columns = ['SERIE', 'REP', 'KG', 'D', 'VM', 'VMP', 'RM', 'P(W)']
+        type_list = ['int', 'int', 'float', 'float', 'float', 'float', 'float', 'float']
+        new_data_copy = change_columns_type(new_data_copy, columns, type_list)
 
-    
-        # List of columns to change
-    columns = ['SERIE', 'REP', 'KG', 'D', 'VM', 'VMP', 'RM', 'P(W)']
-    
-    # Corresponding list of target types
-    type_list = ['int', 'int', 'float', 'float', 'float', 'float', 'float', 'float']
-    
-    new_data_copy = change_columns_type(new_data_copy, columns, type_list)
+        new_data_copy = add_timestamps(new_data_copy)
 
-    new_data_copy = add_timestamps(new_data_copy)
+        new_data_copy = reorder_columns(new_data_copy)
 
-    new_data_copy = reorder_columns(new_data_copy)
-
-    return new_data_copy
+        logger.info("ADR data preprocessed successfully.")
+        return new_data_copy
+    except Exception as e:
+        logger.error(f"Exception in preprocess_adr_data: {e}", exc_info=True)
+        raise
 
 def get_previous_adr_data():
-    file_path = get_download_data_path() / current_app.config.get('TEMPORARY_DATAFRAME_TRAINING')
-    if file_path.exists():
-        adr_dataframe = pd.read_csv(file_path)
-    else:
-        adr_dataframe = pd.DataFrame(columns=[
-                        'Timestamp',
-                        'SERIE',
-                        'REP',
-                        'KG',
-                        'D',
-                        'VM',
-                        'VMP',
-                        'RM',
-                        'P(W)',
-                        'Perfil',
-                        'Ejer.',
-                        'Atleta',
-                        'Ecuacion',
-                        'hash_id'
-                            ])
-        adr_dataframe.to_csv(file_path)
-
-    return adr_dataframe
-
-
-def filter_df_based_on_hash(old_df,new_df):
+    logger.debug("Retrieving previous ADR data.")
     try:
-        existing_hashes = set(old_df['hash_id'])
-    
-        # Define the conditions
+        file_path = get_download_data_path() / current_app.config.get('TEMPORARY_DATAFRAME_TRAINING')
+        if file_path.exists():
+            adr_dataframe = pd.read_csv(file_path)
+            logger.info(f"Previous ADR data loaded from {file_path}.")
+        else:
+            adr_dataframe = pd.DataFrame(columns=[
+                'Timestamp',
+                'SERIE',
+                'REP',
+                'KG',
+                'D',
+                'VM',
+                'VMP',
+                'RM',
+                'P(W)',
+                'Perfil',
+                'Ejer.',
+                'Atleta',
+                'Ecuacion',
+                'hash_id'
+            ])
+            adr_dataframe.to_csv(file_path, index=False)
+            logger.info(f"No existing ADR data found. Created new DataFrame and saved to {file_path}.")
+        return adr_dataframe
+    except Exception as e:
+        logger.error(f"Exception in get_previous_adr_data: {e}", exc_info=True)
+        raise
+
+def filter_df_based_on_hash(old_df, new_df):
+    logger.debug("Filtering new DataFrame based on existing hash IDs.")
+    try:
+        # Ensure 'hash_id' exists in old_df
+        if 'hash_id' in old_df.columns:
+            # Drop NaN values to avoid including them in the hash set
+            existing_hashes = set(old_df['hash_id'].dropna())
+            logger.debug(f"Number of existing hashes: {len(existing_hashes)}")
+        else:
+            logger.warning("'hash_id' column not found in old_df. Assuming no existing hashes.")
+            existing_hashes = set()
+
+        # Ensure 'hash_id' exists in new_df
+        if 'hash_id' not in new_df.columns:
+            logger.error("'hash_id' column not found in new_df.")
+            raise KeyError("'hash_id' column is missing in the new DataFrame.")
+
+        # Perform the filtering
         new_series_condition = ~new_df['hash_id'].isin(existing_hashes)
         new_series_df = new_df[new_series_condition]
-                
+        logger.info(f"Filtered DataFrame to {len(new_series_df)} new records.")
         return new_series_df
-
     except Exception as e:
-        print(f'Exception: {e}')
+        logger.error(f"Exception in filter_df_based_on_hash: {e}", exc_info=True)
+        raise
 
-# Should refactor in the future to use other non-optional column (i.e phone num)
-# Should test error
 def get_user_from_df(df) -> User:
-    atleta_alias = df.loc[1,"Atleta"]
-    query = sa.select(User).where(User.alias == atleta_alias)
-    result = db.session.scalars(query).all()
-    
-    if not result:
-        raise KeyError("Not found in database")
-
-    return result[0]
-
-
-# Should do smth like open session and check if there is an open session if not create one
-# and only commit to db when session is done to avoid too much i/o
-# for now I will check always in db
-def add_or_return_training_session(user) -> TrainingSession:
-    
+    logger.debug("Retrieving user from DataFrame.")
     try:
-        # Obtener el momento actual en UTC
+        atleta_alias = df.loc[1, "Atleta"]
+        logger.debug(f"Atleta alias extracted: {atleta_alias}")
+
+        query = sa.select(User).where(User.alias == atleta_alias)
+        result = db.session.scalars(query).all()
+        logger.debug(f"Number of users found: {len(result)}")
+
+        if not result:
+            logger.error(f"User with alias '{atleta_alias}' not found in the database.")
+            raise KeyError("User not found in the database.")
+
+        logger.info(f"User '{atleta_alias}' retrieved successfully.")
+        return result[0]
+    except Exception as e:
+        logger.error(f"Exception in get_user_from_df: {e}", exc_info=True)
+        raise
+
+def add_or_return_training_session(user) -> TrainingSession:
+    logger.debug(f"Adding or retrieving training session for user ID: {user.id}")
+    try:
         time_now = datetime.now(timezone.utc)
-        # Calcular el tiempo límite restando las horas especificadas
         time_limit = time_now - timedelta(hours=3)
-        
-        # Construir la consulta
+        logger.debug(f"Current time: {time_now}, Time limit: {time_limit}")
+
         query = sa.select(TrainingSession).where(
             TrainingSession.user_id == user.id,
             TrainingSession.created_at >= time_limit,
             TrainingSession.created_at <= time_now
         )
-        
-        # Ejecutar la consulta y obtener los resultados
+
         sessions = db.session.scalars(query).all()
+        logger.debug(f"Number of existing sessions found: {len(sessions)}")
 
         if not sessions:
-            training_session = TrainingSession(user = user, date=time_now)
+            training_session = TrainingSession(user=user, date=time_now)
             db.session.add(training_session)
             db.session.commit()
+            logger.info(f"New training session created for user ID: {user.id}")
             return training_session
-        return sessions[0]
 
+        logger.info(f"Existing training session returned for user ID: {user.id}")
+        return sessions[0]
     except Exception as e:
         db.session.rollback()
-        current_app.logger.error(f"Error en add_or_return_training_session: {e}")
+        logger.error(f"Error in add_or_return_training_session: {e}", exc_info=True)
         raise
 
-    #Look for training sessions today within 3 hours
+def add_dataframe_to_training_detail(df, user, training_session):
+    logger.debug(f"Adding DataFrame to TrainingDetail for session ID: {training_session.id}")
+    try:
+        for index, row in df.iterrows():
+            training_detail = TrainingDetail(
+                session_id=training_session.id,
+                timestamp=row['timestamp'],
+                serie=row['serie'],
+                rep=row['rep'],
+                kg=row['kg'],
+                d=row['d'],
+                vm=row['vm'],
+                vmp=row['vmp'],
+                rm=row['rm'],
+                p_w=row['p_w'],
+                perfil=row['perfil'],
+                ejercicio=row['ejercicio'],
+                ecuacion=row['ecuacion'],
+                atleta_id=user.id,
+                hash_id=row['hash_id']
+            )
+            db.session.add(training_detail)
+            logger.debug(f"Added TrainingDetail record for hash_id: {row['hash_id']}")
+        db.session.commit()
+        logger.info(f"All records from DataFrame added to TrainingDetail for session ID: {training_session.id}")
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Exception in add_dataframe_to_training_detail: {e}", exc_info=True)
+        raise
 
-
-def add_dataframe_to_training_detail(df, session_id):
-    for _, row in df.iterrows():
-        training_detail = TrainingDetail(
-            session_id=session_id,
-            timestamp=row['Timestamp'],
-            serie=row['SERIE'],
-            rep=row['REP'],
-            kg=row['KG'],
-            d=row['D'],
-            vm=row['VM'],
-            vmp=row['VMP'],
-            rm=row['RM'],
-            p_w=row['P(W)'],
-            perfil=row['Perfil'],
-            ejercicio=row['Ejer.'],
-            ecuacion=row['Ecuacion'],
-            atleta_id=row['Atleta_ID'],  # Assuming you have Atleta_ID in df
-            hash_id=row['hash_id']
+def get_training_detail_to_dataframe(user, training_session):
+    logger.debug(f"Fetching TrainingDetail records for user ID: {user.id} and session ID: {training_session.id}")
+    try:
+        query = sa.select(TrainingDetail).where(
+            sa.and_(
+                TrainingDetail.atleta_id == user.id,
+                TrainingDetail.session_id == training_session.id
+            )
         )
-        db.session.add(training_detail)
-    db.session.commit()
 
-def process_training_data(df):
-    user = get_user_from_df(df)
-    session = add_or_return_training_session(user)
-    add_dataframe_to_training_detail(df, session.id)
+        query_results = db.session.execute(query).scalars().all()
+        logger.debug(f"Number of TrainingDetail records fetched: {len(query_results)}")
 
+        data = []
+        for detail in query_results:
+            data.append({
+                'id': detail.id,
+                'session_id': detail.session_id,
+                'timestamp': detail.timestamp,
+                'serie': detail.serie,
+                'rep': detail.rep,
+                'kg': detail.kg,
+                'd': detail.d,
+                'vm': detail.vm,
+                'vmp': detail.vmp,
+                'rm': detail.rm,
+                'p_w': detail.p_w,
+                'perfil': detail.perfil,
+                'ejercicio': detail.ejercicio,
+                'ecuacion': detail.ecuacion,
+                'atleta_id': detail.atleta_id,
+                'hash_id': detail.hash_id
+            })
+        logger.info("TrainingDetail records converted to DataFrame successfully.")
+        df = pd.DataFrame(data)
+        return df
+    except Exception as e:
+        logger.error(f"Exception in get_training_detail_to_dataframe: {e}", exc_info=True)
+        raise
 
-def get_training_detail_to_dataframe():
-    details = TrainingDetail.query.all()
-    data = [{
-        'Timestamp': td.timestamp,
-        'SERIE': td.serie,
-        'REP': td.rep,
-        'KG': td.kg,
-        'D': td.d,
-        'VM': td.vm,
-        'VMP': td.vmp,
-        'RM': td.rm,
-        'P(W)': td.p_w,
-        'Perfil': td.perfil,
-        'Ejer.': td.ejercicio,
-        'Atleta': td.atleta.alias if td.atleta else None,
-        'Ecuacion': td.ecuacion,
-        'hash_id': td.hash_id
-    } for td in details]
-    return pd.DataFrame(data)
+def process_incoming_training_data(document_path):
+    logger.debug(f"Processing incoming training data from path: {document_path}")
+    try:
+        # Preprocess the incoming ADR data
+        adr_data_processed = preprocess_adr_data(document_path)
+        logger.debug("ADR data preprocessed successfully.")
 
+        # Retrieve the user associated with the data
+        user = get_user_from_df(adr_data_processed)
+        logger.debug(f"User retrieved: {user.alias} (ID: {user.id})")
+
+        # Add or retrieve an existing training session for the user
+        training_session = add_or_return_training_session(user)
+        logger.debug(f"Training session ID: {training_session.id}")
+
+        # Fetch existing training details from the database
+        db_dataframe = get_training_detail_to_dataframe(user, training_session)
+        logger.debug(f"Database DataFrame fetched with {len(db_dataframe)} records.")
+
+        # Filter out records that already exist in the database
+        new_reps_df = filter_df_based_on_hash(db_dataframe, adr_data_processed)
+        logger.debug(f"Filtered new reps DataFrame has {len(new_reps_df)} new records.")
+
+        # Check if there are new records to add
+        if not new_reps_df.empty:
+            add_dataframe_to_training_detail(new_reps_df, user, training_session)
+            logger.info("Incoming training data processed and added to the database successfully.")
+        else:
+            logger.info("No new training records to add to the database.")
+
+        return new_reps_df
+    except Exception as e:
+        logger.error(f"Exception in process_incoming_training_data: {e}", exc_info=True)
+        raise

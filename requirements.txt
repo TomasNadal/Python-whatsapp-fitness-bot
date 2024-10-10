@@ -7,3 +7,4 @@ pytest
 pandas
 flask-sqlalchemy
 flask-migrate
+pytest-flask

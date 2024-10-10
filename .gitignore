@@ -93,3 +93,5 @@ target/
 # Adr data and csv
 
 *.csv
+
+sql_test_db.txt

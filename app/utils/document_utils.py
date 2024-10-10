@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, current_app
 import requests
 from typing import Optional
 from pathlib import Path
-from .adr_processor import preprocess_adr_data
+from .adr_processor import preprocess_adr_data, process_incoming_training_data
 
 def get_media_url(media_id: str) -> Optional[str]:
     """
@@ -91,7 +91,7 @@ def process_document_webhook(webhook):
     document_path = download_document_from_webhook(webhook)
     
     if 'adr' in document_path.name:
-        adr_dataframe = preprocess_adr_data(document_path)
+        adr_dataframe = process_incoming_training_data(document_path)
         print(adr_dataframe.head())
 
     else:
