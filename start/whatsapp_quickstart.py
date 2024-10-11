@@ -39,10 +39,7 @@ def send_whatsapp_message():
     return response
 
 
-# Call the function
-response = send_whatsapp_message()
-print(response.status_code)
-print(response.json())
+
 
 # --------------------------------------------------------------
 # Send a custom text WhatsApp message
@@ -70,7 +67,7 @@ def send_message(data):
     }
 
     url = f"https://graph.facebook.com/{VERSION}/{PHONE_NUMBER_ID}/messages"
-
+    print(data)
     response = requests.post(url, data=data, headers=headers)
     if response.status_code == 200:
         print("Status:", response.status_code)
@@ -84,7 +81,7 @@ def send_message(data):
 
 
 data = get_text_message_input(
-    recipient=RECIPIENT_WAID, text="Hello, this is a test message."
+    recipient=RECIPIENT_WAID, text="This works here"
 )
 
 response = send_message(data)
@@ -130,7 +127,7 @@ def get_text_message_input(recipient, text):
     )
 
 
-data = get_text_message_input(
+data1 = get_text_message_input(
     recipient=RECIPIENT_WAID, text="Hello, this is a test message."
 )
 

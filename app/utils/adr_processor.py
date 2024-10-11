@@ -20,6 +20,12 @@ logger.setLevel(logging.DEBUG)  # Set to DEBUG to capture all levels of logs
 # handler.setFormatter(formatter)
 # logger.addHandler(handler)
 
+
+
+'''
+All these functions are to pre-process the csv data
+
+'''
 def split_series_column(df):
     logger.debug("Entering split_series_column function.")
     try:
@@ -197,37 +203,6 @@ def preprocess_adr_data(new_adr_path):
         logger.error(f"Exception in preprocess_adr_data: {e}", exc_info=True)
         raise
 
-def get_previous_adr_data():
-    logger.debug("Retrieving previous ADR data.")
-    try:
-        file_path = get_download_data_path() / current_app.config.get('TEMPORARY_DATAFRAME_TRAINING')
-        if file_path.exists():
-            adr_dataframe = pd.read_csv(file_path)
-            logger.info(f"Previous ADR data loaded from {file_path}.")
-        else:
-            adr_dataframe = pd.DataFrame(columns=[
-                'Timestamp',
-                'SERIE',
-                'REP',
-                'KG',
-                'D',
-                'VM',
-                'VMP',
-                'RM',
-                'P(W)',
-                'Perfil',
-                'Ejer.',
-                'Atleta',
-                'Ecuacion',
-                'hash_id'
-            ])
-            adr_dataframe.to_csv(file_path, index=False)
-            logger.info(f"No existing ADR data found. Created new DataFrame and saved to {file_path}.")
-        return adr_dataframe
-    except Exception as e:
-        logger.error(f"Exception in get_previous_adr_data: {e}", exc_info=True)
-        raise
-
 def filter_df_based_on_hash(old_df, new_df):
     logger.debug("Filtering new DataFrame based on existing hash IDs.")
     try:
@@ -252,6 +227,40 @@ def filter_df_based_on_hash(old_df, new_df):
         return new_series_df
     except Exception as e:
         logger.error(f"Exception in filter_df_based_on_hash: {e}", exc_info=True)
+        raise
+
+'''
+These functions provide info from the database
+'''
+def get_previous_adr_data():
+    logger.debug("Retrieving previous ADR data.")
+    try:
+        file_path = get_download_data_path() / current_app.config.get('TEMPORARY_DATAFRAME_TRAINING')
+        if file_path.exists():
+            adr_dataframe = pd.read_csv(file_path)
+            logger.info(f"Previous ADR data loaded from {file_path}.")
+        else:
+            adr_dataframe = pd.DataFrame(columns=[
+                'timestamp',
+                'serie',
+                'rep',
+                'kg',
+                'd',
+                'vm',
+                'vmp',
+                'rm',
+                'p_w',
+                'perfil',
+                'ejercicio',
+                'atleta',
+                'Ecuacion',
+                'hash_id'
+            ])
+            adr_dataframe.to_csv(file_path, index=False)
+            logger.info(f"No existing ADR data found. Created new DataFrame and saved to {file_path}.")
+        return adr_dataframe
+    except Exception as e:
+        logger.error(f"Exception in get_previous_adr_data: {e}", exc_info=True)
         raise
 
 def get_user_from_df(df) -> User:
@@ -304,6 +313,8 @@ def add_or_return_training_session(user) -> TrainingSession:
         logger.error(f"Error in add_or_return_training_session: {e}", exc_info=True)
         raise
 
+
+# Adds the information to the database
 def add_dataframe_to_training_detail(df, user, training_session):
     logger.debug(f"Adding DataFrame to TrainingDetail for session ID: {training_session.id}")
     try:
@@ -334,6 +345,7 @@ def add_dataframe_to_training_detail(df, user, training_session):
         logger.error(f"Exception in add_dataframe_to_training_detail: {e}", exc_info=True)
         raise
 
+# Gets the training details of a training session and puts them in a dataframe
 def get_training_detail_to_dataframe(user, training_session):
     logger.debug(f"Fetching TrainingDetail records for user ID: {user.id} and session ID: {training_session.id}")
     try:
@@ -374,6 +386,11 @@ def get_training_detail_to_dataframe(user, training_session):
         logger.error(f"Exception in get_training_detail_to_dataframe: {e}", exc_info=True)
         raise
 
+
+
+'''
+Combined function
+'''
 def process_incoming_training_data(document_path):
     logger.debug(f"Processing incoming training data from path: {document_path}")
     try:
@@ -401,10 +418,13 @@ def process_incoming_training_data(document_path):
         if not new_reps_df.empty:
             add_dataframe_to_training_detail(new_reps_df, user, training_session)
             logger.info("Incoming training data processed and added to the database successfully.")
+            csv_df = get_previous_adr_data()
+
+
         else:
             logger.info("No new training records to add to the database.")
 
         return new_reps_df
-    except Exception as e:
+    except Exception as e:        
         logger.error(f"Exception in process_incoming_training_data: {e}", exc_info=True)
         raise

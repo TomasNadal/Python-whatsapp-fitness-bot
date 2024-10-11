@@ -4,6 +4,7 @@ import requests
 from typing import Optional
 from pathlib import Path
 from .adr_processor import preprocess_adr_data, process_incoming_training_data
+from .send_utils import send_message, get_text_message_input
 
 def get_media_url(media_id: str) -> Optional[str]:
     """
@@ -52,48 +53,56 @@ def get_media_url(media_id: str) -> Optional[str]:
     return media_url
 
 
-def download_document_from_webhook(webhook):
+def download_adr_document_from_webhook(webhook):
     headers = {
         "Content-type": "application/json",
         "Authorization": f"Bearer {current_app.config['ACCESS_TOKEN']}",
     }
 
     document = webhook.get_document_of_document_message()
-    logging.info(f'Document message {document.filename} received. Will attempt to extract media_url')
-    media_url = get_media_url(document.id)
-    logging.info(f'Media URL: {media_url}')
+    logging.info(f'Document message {document.filename} received.')
+    if "adr" in document.filename:
+        logging.info(f'Will attempt to get media_url.')
+        media_url = get_media_url(document.id)
+        logging.info(f'Media URL: {media_url}')
 
-    # Make the GET request
-    response = requests.get(media_url, headers=headers)
-    output_file = document.filename
+        # Make the GET request
+        response = requests.get(media_url, headers=headers)
+        output_file = document.filename
 
-    # Define the path to save the file (e.g., app/data/)
-    flask_path = Path(current_app.root_path) / 'data'
-    flask_path.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
+        # Define the path to save the file (e.g., app/data/)
+        flask_path = Path(current_app.root_path) / 'data'
+        flask_path.mkdir(parents=True, exist_ok=True)  # Ensure the directory exists
 
-    # Complete file path
-    output_path = flask_path / output_file
-    # Check if the request was successful
-    if response.status_code == 200:
-        # Write the content to the file
-        with open(output_path, 'wb') as file:
-            file.write(response.content)
-        logging.info(f"Media downloaded successfully and saved to '{output_path}'.")
-        return output_path
+        # Complete file path
+        output_path = flask_path / output_file
+        # Check if the request was successful
+        if response.status_code == 200:
+            # Write the content to the file
+            with open(output_path, 'wb') as file:
+                file.write(response.content)
+            logging.info(f"Media downloaded successfully and saved to '{output_path}'.")
+            return output_path
+        else:
+            logging.error(f"Failed to download media. Status code: {response.status_code}")
+            print(f"Response message: {response.text}")
+
+            return None
     else:
-        logging.error(f"Failed to download media. Status code: {response.status_code}")
-        print(f"Response message: {response.text}")
-
+        logging.info(f'This is not an ADR file.')
         return None
 
 
 def process_document_webhook(webhook):
-    document_path = download_document_from_webhook(webhook)
+    document_path = download_adr_document_from_webhook(webhook)
     
-    if 'adr' in document_path.name:
+    if 'adr' in document_path.name and document_path != None:
         adr_dataframe = process_incoming_training_data(document_path)
         print(adr_dataframe.head())
+        
+        send_message("Document received and processed.")
 
     else:
         print("This is not a valid adrcsv!")
+        send_message("Sorry, this is not a valid csv.")
     
