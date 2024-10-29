@@ -19,7 +19,7 @@ def create_app(Config):
 
 
     from app.models import models
-    from .views import webhook_blueprint
+    from .api.webhooks.views import webhook_blueprint
     # Import and register blueprints, if any
     app.register_blueprint(webhook_blueprint)
 

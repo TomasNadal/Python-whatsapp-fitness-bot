@@ -2,13 +2,13 @@ import logging
 import json
 from pydantic import ValidationError
 from flask import Blueprint, request, jsonify, current_app
-from .utils.whatsapp_security import verify
-from .decorators.security import signature_required
-from .utils.document_utils import process_document_webhook
-from .utils.send_utils import send_interactive_list
-from .models.models import User
-from .states.states import UserContext
-from . import db
+from ...utils.whatsapp_security import verify
+from ...decorators.security import signature_required
+from ...utils.document_utils import process_document_webhook
+from ...utils.send_utils import send_interactive_list
+from ...models.models import User
+from ...state.states.states import UserContext
+from ... import db
 webhook_blueprint = Blueprint("webhook", __name__)
 
 from app.models.payload_models import *

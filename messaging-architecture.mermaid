@@ -1,0 +1,60 @@
+flowchart TB
+    subgraph External["External Services"]
+        WA[WhatsApp API]
+    end
+
+    subgraph API["API Layer"]
+        WH[Webhook Endpoint]
+        SEC[Security Middleware]
+    end
+
+    subgraph Core["Core Processing"]
+        MP[Message Processor]
+        SM[State Manager]
+        
+        subgraph Handlers["Message Handlers"]
+            TH[Text Handler]
+            DH[Document Handler]
+            IH[Interactive Handler]
+        end
+        
+        subgraph States["State Machine"]
+            IS[Idle State]
+            TS[Training State]
+            PS[Profile State]
+        end
+    end
+
+    subgraph Services["Service Layer"]
+        US[User Service]
+        TS2[Training Service]
+        MS[Message Service]
+    end
+
+    subgraph Data["Data Layer"]
+        DB[(Database)]
+    end
+
+    %% Flow of data
+    WA -->|Webhook| WH
+    WH -->|Validate| SEC
+    SEC -->|Process| MP
+    MP -->|Route Message| Handlers
+    Handlers -->|Update| SM
+    SM -->|Manage| States
+    States -->|Use| Services
+    Services -->|Query/Update| DB
+    Services -->|Send Response| WA
+
+    %% Styling
+    classDef external fill:#f96,stroke:#333
+    classDef api fill:#9cf,stroke:#333
+    classDef core fill:#9f9,stroke:#333
+    classDef services fill:#c9f,stroke:#333
+    classDef data fill:#fc9,stroke:#333
+    
+    class WA external
+    class WH,SEC api
+    class MP,SM,TH,DH,IH,IS,TS,PS core
+    class US,TS2,MS services
+    class DB data
