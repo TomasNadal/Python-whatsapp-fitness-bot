@@ -1,0 +1,10 @@
+flask
+python-dotenv
+openai
+aiohttp
+requests
+pytest
+pandas
+flask-sqlalchemy
+flask-migrate
+pytest-flask

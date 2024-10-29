@@ -1,0 +1,2 @@
+Adding two more columns to user: State, substate. This will be used to track the user state in the finite state machine.
+Changed some fields of user to be optional
