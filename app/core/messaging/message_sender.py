@@ -6,7 +6,7 @@ from dataclasses import asdict
 from flask import jsonify
 import json
 
-from .types import Message, TextMessage, InteractiveMessage, MediaMessage
+from .sendMessage_types import Message, TextMessage, InteractiveMessage, MediaMessage
 
 
 class MessageSender(Protocol):
@@ -57,5 +57,7 @@ class WhatsappMessageSender(MessageSender):
             payload = message.to_dict()
             response = self.api_client.send_request(payload)
         except Exception as e:
-            
-        
+            logging.error(f'Exception {e} while sending the message')
+
+
+

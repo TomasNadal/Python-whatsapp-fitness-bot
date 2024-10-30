@@ -131,7 +131,7 @@ class Entry(BaseModel):
     id: str
     changes: List[Change]
 
-class WebhookPayload(BaseModel):
+class ValidatedWebhookPayload(BaseModel):
     object: str
     entry: List[Entry]
 
