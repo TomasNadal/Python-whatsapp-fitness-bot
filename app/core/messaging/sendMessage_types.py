@@ -1,8 +1,6 @@
 from enum import Enum
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional, List, Literal
-
-
 
 class MessageType(Enum):
     TEXT = "text"
@@ -12,162 +10,72 @@ class MessageType(Enum):
 
 @dataclass
 class Message:
-    messaging_product: str = "whatsapp"
+    to: str  # Identificador de WhatsApp o número de teléfono del cliente
     status: str
-    to: str # Identificador de WhatsApp o número de teléfono del cliente
-
+    type: str
+    messaging_product: str
 
     def to_dict(self) -> dict:
         """Base conversion including common fields"""
         return {
             "messaging_product": self.messaging_product,
             "recipient_type": "individual",
-            "to": self.to
+            "to": self.to,
+            "type": self.type
         }
 
     def send_reply(self, content: str) -> None:
         '''Send reply to this message'''
+        pass
 
 '''
 Text message and related objects
-
 '''
+@dataclass
+class TextObject:
+    body: str  # Body of the message
+    preview_url: bool
+
+    def to_dict(self) -> dict:
+        return {'body': self.body, 'preview_url': self.preview_url}
 
 @dataclass
 class TextMessage(Message):
-    ''' Text message implementation'''
-    text: 'TextObject'
-    type: str = "text"
-
+    '''Text message implementation'''
+    text: TextObject
+    
+    def __post_init__(self):
+        self.type = "text"
 
     def to_dict(self) -> dict:
         base_dict = super().to_dict()
-        return {**base_dict,
-                'text': self.text.to_dict(), 'type': self.type}
-
-
-@dataclass
-class TextObject:
-    body: str # Body of the message
-    preview_url: bool = False
-
-    def to_dict(self) -> dict:
-        return {'body':self.body, 'preview_url':self.preview_url}
-
-
-
-'''
-Interactive message
-'''
-@dataclass
-class InteractiveMessage(Message):
-    type: str = "interactive"
-    interactive: 'InteractiveObject'
-    def to_dict(self) -> dict:
-        base_dict = super().to_dict()
-        return {**base_dict,
-                'interactive': self.interactive.to_dict(), 'type': self.type}
-
-@dataclass
-class InteractiveObject:
-    action: 'ActionObject' # Action user will do after reading message
-    body: Optional['InteractiveBodyObject'] # Body of the message
-    header: 'HeaderObject'
-    footer: Optional['FooterObject']
-    type: Literal["list"]
-
-    def to_dict(self) -> dict:
-        interactive_dict = {
-            'action': self.action.to_dict(),
-            'header': self.header.to_dict(),
-            'type': self.type
+        return {
+            **base_dict,
+            'text': self.text.to_dict()
         }
-        if self.body:
-            interactive_dict['body'] = self.body.to_dict()
-        if self.footer:
-            interactive_dict['footer'] = self.footer.to_dict()
 
-        return interactive_dict
-
-
-
+'''
+Interactive message and related objects
+'''
 @dataclass
 class InteractiveBodyObject:
-    text: str #60 char max
+    text: str  # 60 char max
 
     def to_dict(self) -> dict:
         return {"text": self.text}
-
-
 
 @dataclass
 class FooterObject:
-    text: str #60 char max
+    text: str  # 60 char max
 
     def to_dict(self) -> dict:
         return {"text": self.text}
 
-    '''
-    Action Object
-
-    Right now I will only implement the "list" option
-    '''
-@dataclass
-class ActionObject:
-    sections: List['SectionObject']
-
-    def to_dict(self) -> dict:
-        section_list = [section.to_dict() for section in self.sections]
-        return{
-            'sections': section_list
-        }
-
-
-    ''' All the different Header Objects'''
-@dataclass
-class HeaderObject:
-    sub_text: Optional[str]
-
-    def to_dict(self) -> dict:
-        return{
-            'sub_text': self.sub_text
-        }
-
-@dataclass
-class TextHeader(HeaderObject):
-    text: str # Max 60 char
-
-    def to_dict(self) -> dict:
-        base_dict = super().to_dict()
-        return{
-            **base_dict,
-            'text':self.text
-        }
-
-# There are more Header types not implementing them now
-
-
-    ''' Section Object '''
-@dataclass
-class SectionObject:
-    title: Optional[str] # Obligatory if there are more than 1 section
-    rows: Optional[List['Row']]
-
-
-    def to_dict(self) -> dict:
-        section_dict = {}
-        if self.title:
-            section_dict["title"] = self.title
-        if self.rows:
-            section_dict["rows"] = [row.to_dict() for row in self.rows]
-        return section_dict
-
-
 @dataclass
 class Row:
-    id: str # max 24 char
-    title: str # max 200 char
-    description: Optional[str] # max 72 char
+    id: str  # max 24 char
+    title: str  # max 200 char
+    description: Optional[str] = None  # max 72 char
 
     def __post_init__(self):
         if len(self.id) > 24:
@@ -186,32 +94,110 @@ class Row:
             row_dict["description"] = self.description
         return row_dict
 
+@dataclass
+class SectionObject:
+    rows: Optional[List[Row]] = None
+    title: Optional[str] = None  # Obligatory if there are more than 1 section
 
+    def to_dict(self) -> dict:
+        section_dict = {}
+        if self.title:
+            section_dict["title"] = self.title
+        if self.rows:
+            section_dict["rows"] = [row.to_dict() for row in self.rows]
+        return section_dict
+
+@dataclass
+class ActionObject:
+    sections: List[SectionObject]
+
+    def to_dict(self) -> dict:
+        return {
+            'sections': [section.to_dict() for section in self.sections]
+        }
+
+@dataclass
+class HeaderObject:
+    type: str
+    sub_text: Optional[str]
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "sub_text": self.sub_text
+        }
+
+@dataclass
+class TextHeader(HeaderObject):
+    text: str  # Max 60 char
+
+    def to_dict(self) -> dict:
+        base_dict = super().to_dict()
+        return {
+            **base_dict,
+            'text': self.text
+        }
+
+@dataclass
+class InteractiveObject:
+    type: Literal["list"]
+    action: ActionObject
+    header: HeaderObject
+    body: Optional[InteractiveBodyObject] = None
+    footer: Optional[FooterObject] = None
+
+    def to_dict(self) -> dict:
+        interactive_dict = {
+            'type': self.type,
+            'action': self.action.to_dict(),
+            'header': self.header.to_dict()
+        }
+        if self.body:
+            interactive_dict['body'] = self.body.to_dict()
+        if self.footer:
+            interactive_dict['footer'] = self.footer.to_dict()
+        return interactive_dict
+
+@dataclass
+class InteractiveMessage(Message):
+    interactive: InteractiveObject
+
+    def __post_init__(self):
+        self.type = "interactive"
+
+    def to_dict(self) -> dict:
+        base_dict = super().to_dict()
+        return {
+            **base_dict,
+            'interactive': self.interactive.to_dict()
+        }
 
 '''
 Multimedia message and related objects
-
 '''
 @dataclass
 class MediaMessage(Message):
-    id = str
-    link = Optional[str] # If I host the document in my server
-    filename = Optional[str] # Only use with documents
+    media_id: str
+    media_type: str  # document, image, video, etc.
+    link: Optional[str] = None  # If hosting the document on server
+    filename: Optional[str] = None  # Only use with documents
+
+    def __post_init__(self):
+        self.type = self.media_type
 
     def to_dict(self) -> dict:
         base_dict = super().to_dict()
         media_dict = {}
         
-        if self.id:
-            media_dict["id"] = self.id
+        if self.media_id:
+            media_dict["id"] = self.media_id
         elif self.link:
             media_dict["link"] = self.link
             
-        if self.type == "document" and self.filename:
+        if self.media_type == "document" and self.filename:
             media_dict["filename"] = self.filename
 
         return {
             **base_dict,
-            "type": self.type,
-            self.type: media_dict
+            self.media_type: media_dict
         }

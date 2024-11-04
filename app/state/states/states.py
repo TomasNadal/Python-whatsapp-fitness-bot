@@ -4,7 +4,13 @@ from app.models.payload_models import *
 from app.utils.send_utils import send_message, send_interactive_list
 from app.models.models import User
 from app import db
+from flask import current_app
 from app.utils.document_utils import process_document_webhook
+from app.core.messaging.validated_message_handler import MessageHandler,IdleStateMessageHandler, AddTrainingStateMessageHandler, TrainingManagementStateMessageHandler
+from app.core.messaging.message_sender import WhatsappMessageSender, WhatsappAPIClient
+
+
+
 
 class UserContext:
     '''
@@ -62,6 +68,29 @@ class State(ABC):
 
     def __init__(self, context: UserContext = None):
         self.context = context
+        self.message_handler = self._create_message_handler()
+
+    def _create_message_handler(self) -> MessageHandler:
+        """Create the appropriate message handler for this state"""
+        handler_mapping = {
+            'IdleState': IdleStateMessageHandler,
+            'TrainingManagementState': TrainingManagementStateMessageHandler,
+            'AddTrainingState': AddTrainingStateMessageHandler,
+        }
+        
+        # Get current state class name
+        whatsapp_api_client = WhatsappAPIClient(access_token= current_app.config.get("ACCESS_TOKEN")  , api_version= current_app.config.get("VERSION"), phone_number_id= current_app.config.get("PHONE_NUMBER_ID"))
+        state_name = self.__class__.__name__
+        handler_class = handler_mapping.get(state_name)
+        
+        if not handler_class:
+            raise ValueError(f"No handler defined for state {state_name}")
+            
+        # Create handler with dependencies
+        message_sender = WhatsappMessageSender(whatsapp_api_client) 
+        return handler_class(message_sender)
+
+
 
     @abstractmethod
     def handle_webhook(self, webhook):

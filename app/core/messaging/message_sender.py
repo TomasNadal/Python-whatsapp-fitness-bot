@@ -15,7 +15,7 @@ class MessageSender(Protocol):
 
 
 class WhatsappAPIClient:
-    def __init__(self, access_token: str, api_version: str, phone_number_id:str)
+    def __init__(self, access_token: str, api_version: str, phone_number_id:str):
         self.access_token = access_token
         self.api_version = api_version
         self.phone_number_id = phone_number_id

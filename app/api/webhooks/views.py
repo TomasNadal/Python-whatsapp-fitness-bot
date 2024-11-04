@@ -7,30 +7,24 @@ from ...decorators.security import signature_required
 from ...utils.document_utils import process_document_webhook
 from ...utils.send_utils import send_interactive_list
 from ...models.models import User
+
 from ...state.states.states import UserContext
 from ... import db
+from app.core.messaging.processor import WhatsappRequestProcessor
+from app.core.messaging.validator import PydanticSchema, ValidatedWebhookPayload
+
 webhook_blueprint = Blueprint("webhook", __name__)
 
 from app.models.payload_models import *
 
-
-
-def process_raw_payload(request):
-    
-    body = request.get_json()
-    json_str_body = json.dumps(body)
-
-    webhook = parse_webhook_payload(json_str_body)
-    return webhook
-
-
-
-
+validator = PydanticSchema(ValidatedWebhookPayload)
+message_processor = WhatsappRequestProcessor(validator)
 
 
 def handle_message():
     try:
-        processed_payload = process_raw_payload(request)
+
+        processed_payload = message_processor.process_request(request)
 
         if processed_payload is None:
             return jsonify({'status':'ok'}),200
@@ -49,6 +43,7 @@ def handle_message():
             print(user)
             print(user.state)
             userContext.handle_webhook(processed_payload)
+
         else:
             user = User(name = user_name, phone_number = wa_id)
             db.session.add(user)
@@ -83,6 +78,7 @@ def webhook_get():
 @webhook_blueprint.route("/webhook", methods=["POST"])
 @signature_required
 def webhook_post():
+
     return handle_message()
 
 

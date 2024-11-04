@@ -1,8 +1,9 @@
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, TypeAdapter
 from typing import List, Literal, Union, Annotated, Tuple, Optional
 import json
 import logging
 
+# https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/components
 
 class Metadata(BaseModel):
     display_phone_number: str
@@ -259,32 +260,5 @@ class ValidatedWebhookPayload(BaseModel):
 
         return from_,id,timestamp
      
-
-
-        
-
-def parse_webhook_payload(payload: str) -> WebhookPayload:
-    """
-    Parses the JSON webhook payload into a WebhookPayload object.
-
-    Args:
-        payload (str): The JSON string payload received from the webhook.
-
-    Returns:
-        Optional[WebhookPayload]: The parsed payload object if successful, else None.
-    """
-    try:
-        payload_dict = json.loads(payload)
-        webhook_payload = WebhookPayload(**payload_dict)
-        return webhook_payload
-    except ValidationError as errors:
-        print("Validation failed!")
-
-        for error in errors.errors():
-            print(f'''  Message: {error['msg']}
-    Position: {error['loc']}
-    Error type: {error['type']}''')
-        return None
-    
     
 
