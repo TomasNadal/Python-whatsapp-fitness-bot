@@ -9,6 +9,13 @@ class MessageHandler(Protocol):
 
 
 class IdleStateMessageHandler(MessageHandler):
+    '''
+    Returns 
+        "TRAINING_SELECTED if transition to TrainingManagementState
+        None if not valid transition 
+    
+    '''
+
     def __init__(self, message_sender: MessageSender):
         self.message_sender = message_sender
 
@@ -16,8 +23,8 @@ class IdleStateMessageHandler(MessageHandler):
         webhook_type = validated_message.get_type_of_webhook()
 
         if webhook_type == 'text':
-            self._handle_text(validated_message)
-            return None
+            action = self._handle_text(validated_message)
+            return action
             
         elif webhook_type == 'interactive':
             action = self._handle_interactive(validated_message)
@@ -27,6 +34,7 @@ class IdleStateMessageHandler(MessageHandler):
 
     def _handle_text(self, validated_message: ValidatedWebhookPayload) -> None:
         body = validated_message.get_body_of_text_message()
+
         print(f'User replied {body}')
         self.message_sender.send("Por favor, elige una opcion de la lista")
         self.message_sender.send(interactive_list_1)
@@ -38,7 +46,7 @@ class IdleStateMessageHandler(MessageHandler):
 
         if id == 'training' and title == 'Opciones entrenamiento':
             response_list = self.message_sender.send(interactive_list_2)
-            return "TRAINING_SELECTED"
+            return "TRAINING SELECTED"
 
 
 class TrainingManagementStateMessageHandler(MessageHandler):
@@ -49,8 +57,8 @@ class TrainingManagementStateMessageHandler(MessageHandler):
         webhook_type = validated_message.get_type_of_webhook()
         try:
             if webhook_type == 'text':
-                self._handle_text(validated_message)
-                return None
+                action = self._handle_text(validated_message)
+                return action
                 
             elif webhook_type == 'interactive':
                 action = self._handle_interactive(validated_message)

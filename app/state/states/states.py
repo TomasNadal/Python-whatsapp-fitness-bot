@@ -22,9 +22,6 @@ class UserContext:
     A reference to the current state
     '''
 
-
-
-
     # When initializing the Context, we assign a state
     def __init__(self, user: User) -> None:
         self.user = user
@@ -77,7 +74,6 @@ class State(ABC):
             'TrainingManagementState': TrainingManagementStateMessageHandler,
             'AddTrainingState': AddTrainingStateMessageHandler,
         }
-        
         # Get current state class name
         whatsapp_api_client = WhatsappAPIClient(access_token= current_app.config.get("ACCESS_TOKEN")  , api_version= current_app.config.get("VERSION"), phone_number_id= current_app.config.get("PHONE_NUMBER_ID"))
         state_name = self.__class__.__name__
@@ -103,61 +99,29 @@ class IdleState(State):
 
     def handle_webhook(self,webhook):
         try:
-
-            webhook_type = webhook.get_type_of_webhook()
-
-
-            if webhook_type == 'text':
-                body = webhook.get_body_of_text_message()
-                print(f'User replied {body}')
-                response_remainder = send_message("Por favor, elige una opcion de la lista")
-                response_list = send_interactive_list(1)
-                if response_remainder.status_code == 200 and response_list.status_code == 200:
-                    print(f'Succesfully sent reminder to choose from list.')
-                
-                else:
-                    print(f"Error sending option list {response_remainder.text}")
-
-            elif webhook_type == 'interactive':
-                message_content = webhook.get_messages_content()
-
-                id,title = message_content.list_reply.get_list_reply_content()
-
-                if id == 'training' and title == 'Opciones entrenamiento':
-                    response_list = send_interactive_list(2)
+            action = self.message_handler.handle_message(webhook)
+            if action == "TRAINING SELECTED":
                     self.context.transition_to(TrainingManagementState())
 
         except Exception as e:
-            logging.ERROR(f'Unexpected exception during webhook handling {e}')
+            logging.ERROR(f'Unexpected exception during webhook handling {e}', exc_info=True)
             send_message("Ha habido un problema, vuelve a enviar tu mensaje.")
             
 
 class TrainingManagementState(State):
     def handle_webhook(self,webhook):
         try:
-            webhook_type = webhook.get_type_of_webhook()
+            
+            action = self.message_handler.handle_message(webhook)
 
-            if webhook_type == 'text':
-                text_response = webhook.get_body_of_text_message()
-                print(f'User replied {text_response}')
-                response_remainder = send_message("Elige qué quieres hacer en tu entrenamiento")
-                response_list = send_interactive_list(2)
-                if 'finitto' in text_response.lower():
-                    self.context.transition_to(IdleState())
+            if action == "END":
+                self.context.transition_to(IdleState())
 
-            elif webhook_type == 'interactive':
-                message_content = webhook.get_messages_content()
-
-                id,title = message_content.list_reply.get_list_reply_content()
-
-                if id == 'add_training' and title == 'Añade un entrenamiento':
-                    self.context.transition_to(AddTrainingState())
-                else:
-                    send_message("Selecciona otra opción, esta aun no está lista.")
+            elif action == "ADD TRAINING":
+                self.context.transition_to(AddTrainingState())
         
         except Exception as e:
-            logging.ERROR(f"Unexpected expection {e}, returning to IDLE")
-            send_message("Ha habido un error con tu petición, vuelve a seleccionar la opción")
+            logging.ERROR(f"Unexpected expection {e}, returning to IDLE", exc_info=True)
             self.context.transition_to(IdleState())
 
 class AddTrainingState(State):

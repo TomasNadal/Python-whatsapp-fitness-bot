@@ -67,7 +67,7 @@ def handle_message():
         return jsonify({"status": "error", "message": "Invalid JSON provided"}), 400
     
     except Exception as e:
-        logging.error(f"Unexpected exception {e}")
+        logging.error(f"Unexpected exception {e}", exc_info=True)
         return jsonify({"status": "error", "message": "ERROR"}), 400
 
 
